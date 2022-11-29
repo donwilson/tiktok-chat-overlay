@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>TikTok Stream UI</title>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+	<style>
+		body { margin: 0; padding-bottom: 3rem; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+		
+		#messages { list-style-type: none; margin: 0; padding: 0; }
+		#messages > li { padding: 0.5rem 1rem; }
+		
+		body{ background: #00ff00; }
+		
+		.chat-list { padding: 0; font-size: .8rem; }
+		
+		.chat-list li { margin-bottom: 10px; overflow: auto; color: #ffffff; }
+			.chat-list .chat-img { float: left; width: 48px; }
+				.chat-list .chat-img img { width: 100%; }
+			.chat-list .chat-body { margin-left: 8px; float: left; width: 70%; }
+				.chat-list .chat-message { display: inline-block; padding: 0; position: relative; }
+					.chat-list .chat-message .chat-message-username { margin: 0 0 5px 0; font-weight: 600; line-height: 1; font-size: 1.8em; color: #c3c3c3; }
+					.chat-list .chat-message .chat-message-message { margin: 0; padding: 0; font-size: 2em; line-height: 1; }
+					.chat-list .chat-message .chat_event-follow { font-size: 1.5em; }
+		
+		#top_chatters { list-style: none; margin: 0; padding: 0; }
+			#top_chatters li { list-style: none; margin: 0 0 9px 0; padding: 0; }
+				#top_chatters li .image_cont { width: 25%; min-width: 48px; text-align: center; }
+					#top_chatters li .image_cont img { width: 75%; margin: 0 auto; display: none; }
+				#top_chatters li .name_cont { font-size: 1.3em; color: #ffffff; opacity: 0.4; }
+			
+			#top_chatters li:first-child .image_cont img { width: 100%; display: block; }
+			#top_chatters li:first-child .name_cont { font-size: 1.8em; opacity: 1; }
+			
+			#top_chatters li:nth-child(2) .image_cont img { display: block; opacity: 0.8; }
+			#top_chatters li:nth-child(2) .name_cont { font-size: 1.5em; opacity: 0.8; }
+			
+			#top_chatters li:nth-child(3) .image_cont img { display: block; opacity: 0.6; }
+			#top_chatters li:nth-child(3) .name_cont { font-size: 1.4em; opacity: 0.6; }
+	</style>
+</head>
+<body>
+	<div class="mx-4 px-3">
+		<div class="mb-2">
+			
+		</div>
+		
+		<div class="px-2 d-none">
+			<h1 class="text-white">Viewer Count: <span id="viewer_count_tally">~</span></h1>
+		</div>
+		
+		<div class="d-flex flex-row w-100 align-items-bottom text-white">
+			<ul id="messages" class="chat-list w-75"></ul>
+			<div class="d-flex flex-column h-100 w-25">
+				<div>
+					<h3>Top Chatters</h3>
+					<ul id="top_chatters"></ul>
+					
+					
+					
+					
+				</div>
+			</div>
+		</div>
+	</div>
+	
+	<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+	<script src="https://cdn.jsdelivr.net/npm/popper.js@1.14.7/dist/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+	<script src="/socket.io/socket.io.js"></script>
+	<script>
+		function cullMessageLog() {
+			let num_allowed = 20;
+			let chat_messages = document.getElementById("messages").getElementsByTagName("li");
+			
+			if(chat_messages.length) {
+				for(let i = 0; i < chat_messages.length; i++) {
+					if(i >= num_allowed) {
+						let e = chat_messages[ i ];
+						
+						e.parentElement.removeChild(e);
+					}
+				}
+			}
+		}
+		
+		function esc_attr(str) {
+			return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+		}
+		
+		function esc_html(str) {
+			return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+		}
+		
+		
+		
+		var socket = io();
+		
+		var messages = document.getElementById('messages');
+		
+		socket.on('blip', function(msg) {
+			if("chat" === msg.type) {
+				// chat message
+				let html = [];
+				
+				html.push("<div class=\"d-flex flex-row align-items-start w-100\">")
+				html.push("<div class=\"chat-img\">");
+				html.push("<img src=\""+ msg.cargo.data.profilePictureUrl +"\" class=\"rounded-circle\">");
+				html.push("</div>");
+				html.push("<div class=\"chat-body flex-fill\">");
+				html.push("<div class=\"chat-message\">");
+				html.push("<div class=\"chat-message-username\">"+ esc_html(msg.cargo.username) +"</div>");
+				html.push("<div class=\"chat-message-message\">"+ esc_html(msg.cargo.comment) +"</div>");
+				html.push("</div>");
+				html.push("</div>");
+				html.push("</div>");
+				
+				let item = document.createElement('li');
+				item.className = "in";
+				item.innerHTML = html.join("");
+				messages.prepend(item);
+				
+				cullMessageLog();
+			} else if("gift" === msg.type) {
+				// gift
+				
+			} else if("viewer_count_update" === msg.type) {
+				// viewer count update
+				document.getElementById('viewer_count_tally').innerHTML = msg.cargo.viewer_count.toLocaleString("en-US");
+			} else if("top_chatters_update" === msg.type) {
+				let html = [];
+				
+				for(let i = 0; i < msg.cargo.list.length; i++) {
+					let chatter = msg.cargo.list[ i ];
+					
+					let avatar = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+					
+					if(i < 3) {
+						avatar = chatter.avatar;
+					}
+					
+					html.push("<li class=\"d-flex flex-row align-items-center w-100\">");
+					html.push("<div class=\"image_cont mr-2\">");
+					html.push("<img src=\""+ avatar +"\" class=\"rounded-circle img-fluid\">");
+					html.push("</div>");
+					html.push("<div class=\"name_cont flex-fill text-truncate\">");
+					html.push("<strong>"+ chatter.username +"</strong>");
+					//html.push("<strong>"+ chatter.username +"</strong>: "+ chatter.count);
+					html.push("</div>");
+					html.push("</li>");
+				}
+				
+				document.getElementById("top_chatters").innerHTML = html.join("");
+			} else if("social_event" === msg.type) {
+				let html = [];
+				
+				console.log(msg);
+				
+				let message = msg.cargo.data.label;
+				message = message.replace("{0:user}", "<strong>"+ msg.cargo.data.uniqueId +"</strong>");
+				
+				html.push("<div class=\"chat-img\"></div>");
+				html.push("<div class=\"chat-body\">");
+				html.push("<div class=\"chat-message\">");
+				html.push("<div class=\"chat_event chat_event-follow\">");
+				html.push("<em>"+ message +"</em>");
+				html.push("</div>");
+				html.push("</div>");
+				html.push("</div>");
+				
+				let item = document.createElement('li');
+				//item.textContent = html.join("");
+				item.className = "in";
+				item.innerHTML = html.join("");
+				//messages.appendChild(item);
+				messages.prepend(item);
+				
+				cullMessageLog();
+			}
+		});
+		
+		
+		// // recurring event: chat log culling
+		// window.setInterval(function() { cullMessageLog(); }, 5000);
+	</script>
+</body>
+</html>
